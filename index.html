@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f2eb">
+  <title>Grain / Generative wood studio</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="generators.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="./" aria-label="Grain home"><span class="brand-mark" aria-hidden="true">g.</span> grain<span class="brand-note">GENERATIVE WOOD STUDIO</span></a>
+    <span class="local-label"><i></i> Made here. Stays here.</span>
+  </header>
+  <main>
+    <section class="intro">
+      <div><p class="eyebrow">A LITTLE ORDER. A LITTLE WILD.</p><h1>Code meets grain.</h1><p class="lede">Explore organic forms, precise lines, and the possibilities of plywood.</p></div>
+      <button id="shuffle" class="button primary"><span aria-hidden="true">&#8635;</span> Surprise me</button>
+    </section>
+    <section class="studio" aria-label="Art studio">
+      <aside class="controls">
+        <div class="section-heading"><h2>01 / Follow a direction</h2><span>Not presets</span></div>
+        <div class="directions" aria-label="Inspiration direction">
+          <button data-direction="all" class="active" aria-pressed="true">Anything</button>
+          <button data-direction="geometry" aria-pressed="false">Geometric</button>
+          <button data-direction="organic" aria-pressed="false">Organic</button>
+          <button data-direction="optical" aria-pressed="false">Optical</button>
+        </div>
+        <p class="explorer-note">New ideas combine structure, openings, distortion, and rhythm. These directions guide discovery, not limit your tools.</p>
+        <div id="recipe-controls" class="recipe-controls">
+          <div class="field"><label for="layout">Structure</label><select id="layout"></select></div>
+          <div class="field"><label for="motif">Openings</label><select id="motif"></select></div>
+          <div class="field"><label for="field">Distortion</label><select id="field"></select></div>
+          <div class="field"><label for="rhythm">Rhythm</label><select id="rhythm"></select></div>
+        </div>
+        <p id="legacy-note" class="explorer-note" hidden>Saved first-draft study. Its original geometry is preserved. Discover a new composition to use the recipe tools.</p>
+        <div class="section-heading settings-heading"><h2>02 / Make it yours</h2><button id="reset" class="text-button">Reset</button></div>
+        <div class="field"><label for="density">Detail <output id="density-value"></output></label><input id="density" type="range" min="8" max="48" value="26"><div class="range-labels"><span>Quiet</span><span>Intricate</span></div></div>
+        <div class="field"><label for="movement">Movement <output id="movement-value"></output></label><input id="movement" type="range" min="0" max="100" value="62"><div class="range-labels"><span>Measured</span><span>Wild</span></div></div>
+        <div id="cut-controls">
+          <div class="field"><label for="openness">Open space <output id="openness-value"></output></label><input id="openness" type="range" min="35" max="90" value="86"><div class="range-labels"><span>Solid</span><span>Airy</span></div></div>
+          <div class="field"><label for="web">Reserved wood / in <output id="web-value"></output></label><input id="web" type="range" min="0.1" max="0.3" step="0.01" value="0.14"><div class="range-labels"><span>Finer</span><span>Substantial</span></div></div>
+        </div>
+        <div class="field dimensions"><div><label for="width">Width / in</label><input id="width" type="number" min="2" max="19" step="0.25" value="10"></div><span aria-hidden="true">&#215;</span><div><label for="height">Height / in</label><input id="height" type="number" min="2" max="10.5" step="0.25" value="8"></div></div>
+        <div class="field seed-field"><label for="seed">Seed <span>Same recipe + seed, same art</span></label><div class="seed-input"><input id="seed" type="text" maxlength="40" value="courtyard-008"><button id="new-seed" aria-label="Reseed the current recipe" title="Same recipe, new seed">&#8635;</button></div></div>
+        <div class="material-note"><span class="material-swatch" aria-hidden="true"></span><div><strong>1/8 in plywood</strong><small>Design material reference, not machine settings.</small></div></div>
+      </aside>
+      <div class="workspace">
+        <div class="preview-toolbar"><span class="preview-caption"><i></i> LIVE STUDY <span id="study-seed"></span></span><div class="segmented" aria-label="Preview mode"><button id="wood-view" class="selected" aria-pressed="true">Wood</button><button id="paths-view" aria-pressed="false">Laser paths</button></div></div>
+        <div id="preview" class="preview wood" role="img" aria-label="Generated art preview"></div>
+        <div class="preview-footer"><span id="dimensions-label"></span><span id="path-count"></span><span>SVG / REAL-WORLD SCALE</span></div>
+        <div class="recipe-summary" id="recipe-summary"></div>
+        <div class="export-bar"><div><h2 id="design-name">A new composition</h2><p id="design-description"></p></div><div class="export-actions"><button id="favorite" class="button secondary" aria-label="Save current study to favorites">&#9825; Save study</button><button id="export" class="button primary">Export SVG <span aria-hidden="true">&#8599;</span></button></div></div>
+        <div class="production-note" id="production-note"></div>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+    <section class="exploration" aria-label="Design variations"><div class="section-heading"><div><p class="eyebrow">FOLLOW YOUR CURIOSITY</p><h2 id="ideas-heading">Different worlds, not just variations.</h2></div><div class="idea-actions"><button id="evolve" class="text-button">More like this</button><button id="refresh-variations" class="text-button">Six new directions &#8594;</button></div></div><p class="explorer-note" id="ideas-note">Each card has a different recipe. Select one, then make it yours.</p><div id="variations" class="variation-grid"></div></section>
+    <section id="saved-section" class="exploration" hidden><div class="section-heading"><div><p class="eyebrow">YOUR COLLECTION</p><h2>Worth coming back to.</h2></div><span>Saved in this browser only</span></div><div id="saved" class="variation-grid"></div></section>
+    <details class="guide"><summary>Before the laser: a short studio checklist <span aria-hidden="true">+</span></summary><div class="guide-content"><p><strong>New recipes use closed red cutouts, not score-line drawings.</strong> Assign red to cut in Glowforge and verify imported dimensions. Blue only appears in saved first-draft score studies.</p><p>Use only plywood approved for your laser. Unknown glues, coatings, or treatments may be unsafe. Consult the machine and material guidance, use approved ventilation, and never leave a running laser unattended.</p><p>Reserved wood is a geometric spacing target before kerf, not a strength rating. Small openings are omitted, but sharp tips can remain. The app does not model kerf, burning, or fit. Inspect paths and test a small scrap of your actual material.</p><p>The wood preview is an illustration, not a fabrication simulation. All exports include a rectangular boundary cut; disable it if you only want interior details on an existing panel. New recipes intend a single connected panel, not a layered 3D object.</p></div></details>
+  </main>
+  <footer><span>grain / an experiment in digital craft</span><span>No cloud. No tracking. Just possibility.</span></footer>
+</body>
+</html>

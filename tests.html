@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Grain geometry checks</title><script src="generators.js"></script></head>
+<body>
+<h1>Grain geometry checks</h1><pre id="results">Running...</pre>
+<script>
+"use strict";
+const G = window.Grain, results = [], failures = [];
+function assert(condition, message) { if (!condition) throw new Error(message); }
+function test(name, run) {
+  try { run(); results.push("PASS " + name); }
+  catch (error) { results.push("FAIL " + name + ": " + error.message); failures.push(name); }
+}
+function cross(a,b,c) { return (b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]); }
+function intersects(a,b,c,d) {
+  return cross(a,b,c)*cross(a,b,d)<-1e-12 && cross(c,d,a)*cross(c,d,b)<-1e-12;
+}
+const legacyBase = {style:"ripple",seed:"river-042",width:10,height:8,density:26,movement:62};
+for (const style of ["ripple", "contour", "flow", "bloom"]) {
+  test(style + " deterministic SVG and correct physical dimensions", () => {
+    const s = {...legacyBase,style,seed:'a<&"seed',width:7.25,height:5.5};
+    const svg = G.exportSVG(s);
+    assert(svg === G.exportSVG(s), "Different output for identical settings");
+    const xml = new DOMParser().parseFromString(svg,"image/svg+xml");
+    assert(!xml.querySelector("parsererror"), "Invalid SVG XML");
+    assert(xml.documentElement.getAttribute("width")==="7.25in", "Wrong width");
+    assert(xml.documentElement.getAttribute("height")==="5.5in", "Wrong height");
+    assert(xml.documentElement.getAttribute("viewBox")==="0 0 7.25 5.5", "Wrong viewBox");
+    assert(xml.querySelector("#cut rect"), "Missing boundary");
+    assert(xml.querySelector("#cut").getAttribute("stroke")==="#ff0000", "Wrong cut color");
+    if (G.styles[style].operation==="score") assert(xml.querySelector("#score").getAttribute("stroke")==="#0000ff","Wrong score color");
+    assert(!xml.querySelector("mask,pattern,image,script"), "Preview content leaked into export");
+    const storedSettings = JSON.parse(xml.querySelector("desc").textContent.slice(0, JSON.stringify(s).length));
+    assert(storedSettings.seed === s.seed, "Seed did not survive XML escaping");
+    assert(svg !== G.exportSVG({...s,seed:"different"}), "Seed has no effect");
+  });
+  test(style + " extreme sizes and movements remain inside frame", () => {
+    for (const [width,height] of [[2,2],[19,2],[2,10.5],[19,10.5],[10,8]]) {
+      for (const movement of [0,100]) for (const density of [8,48]) for (const seed of ["fern","moss","dune"]) {
+        const d = G.generate({...legacyBase,style,width,height,movement,density,seed});
+        for (const shape of d.shapes) for (const [x,y] of shape.points) {
+          assert(Number.isFinite(x) && Number.isFinite(y), "Nonfinite coordinate");
+          assert(x>=d.margin-1e-6 && x<=width-d.margin+1e-6 && y>=d.margin-1e-6 && y<=height-d.margin+1e-6, "Shape leaves frame");
+        }
+        if (style==="ripple") assert(d.metrics.minimumHorizontalWeb>=0.08-1e-8,"Web below 0.08 in");
+        if (G.styles[style].operation==="cut") assert(d.shapes.every(p=>p.closed),"Open cutout");
+        if (style==="flow") {
+          for (let i=1;i<d.shapes.length;i++) for (let k=0;k<d.shapes[i].points.length;k++)
+            assert(d.shapes[i].points[k][1]>d.shapes[i-1].points[k][1],"Flow lines cross");
+        }
+        if (style==="ripple") {
+          for (let i=1;i<d.shapes.length;i++) for (let k=1;k<100;k++)
+            assert(d.shapes[i].points[k][0]-d.shapes[i-1].points[200-k][0]>=0.08-1e-8,"Adjacent slots overlap or undershoot web");
+        }
+      }
+    }
+  });
+  test(style + " no self-intersections", () => {
+    const d=G.generate({...legacyBase,style,movement:100,density:48});
+    for (const shape of d.shapes) {
+      const p=shape.points, end=shape.closed?p.length:p.length-1;
+      for(let i=0;i<end;i++) for(let j=i+2;j<end;j++) {
+        if(shape.closed && i===0 && j===end-1) continue;
+        assert(!intersects(p[i],p[(i+1)%p.length],p[j],p[(j+1)%p.length]),"Self-intersection");
+      }
+    }
+  });
+}
+      function pointDistance(p,a,b) {
+        const dx=b[0]-a[0],dy=b[1]-a[1],length=dx*dx+dy*dy;
+        const t=length?Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/length)):0;
+        return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy);
+      }
+      function bounds(p) {
+        return [Math.min(...p.map(v=>v[0])),Math.min(...p.map(v=>v[1])),Math.max(...p.map(v=>v[0])),Math.max(...p.map(v=>v[1]))];
+      }
+      function contains(p,q) {
+        let inside=false;
+        for(let i=0,j=p.length-1;i<p.length;j=i++) {
+          const a=p[i],b=p[j];
+          if((a[1]>q[1])!==(b[1]>q[1]) && q[0]<(b[0]-a[0])*(q[1]-a[1])/(b[1]-a[1])+a[0]) inside=!inside;
+        }
+        return inside;
+      }
+      function audit(d) {
+        const shapes=d.shapes, boxes=shapes.map(s=>bounds(s.points)), web=d.settings.web;
+        assert(shapes.length>0,"No cutouts");
+        for(const shape of shapes) {
+          assert(shape.closed && shape.operation==="cut","Recipe emitted score line or open cut");
+          for(const [x,y] of shape.points) assert(Number.isFinite(x)&&Number.isFinite(y)&&x>=d.margin-1e-6&&y>=d.margin-1e-6&&x<=d.settings.width-d.margin+1e-6&&y<=d.settings.height-d.margin+1e-6,"Outside frame");
+          const p=shape.points;
+          for(let i=0;i<p.length;i++)for(let j=i+2;j<p.length;j++) {
+            if(i===0&&j===p.length-1)continue;
+            assert(!intersects(p[i],p[(i+1)%p.length],p[j],p[(j+1)%p.length]),"Self-intersecting cutout");
+          }
+        }
+        for(let i=0;i<shapes.length;i++)for(let j=i+1;j<shapes.length;j++) {
+          const a=boxes[i],b=boxes[j],dx=Math.max(0,a[0]-b[2],b[0]-a[2]),dy=Math.max(0,a[1]-b[3],b[1]-a[3]);
+          if(Math.hypot(dx,dy)>=web)continue;
+          const p=shapes[i].points,q=shapes[j].points;
+          assert(!contains(p,q[0])&&!contains(q,p[0]),"Nested/overlapping holes");
+          for(let k=0;k<p.length;k++)for(let l=0;l<q.length;l++){
+            const pa=p[k],pb=p[(k+1)%p.length],qa=q[l],qb=q[(l+1)%q.length];
+            assert(!intersects(pa,pb,qa,qb),"Cutouts cross");
+            const distance=Math.min(pointDistance(pa,qa,qb),pointDistance(pb,qa,qb),pointDistance(qa,pa,pb),pointDistance(qb,pa,pb));
+            assert(distance>=web-0.00003,`Web ${distance.toFixed(5)} below ${web} (${d.settings.recipe.layout})`);
+          }
+        }
+      }
+      for(const layout of Object.keys(G.recipeOptions.layout)) {
+        test(layout+" new recipes: closed cutouts, real spacing, no intersections",()=>{
+          for(const motif of ["facets","stars","soft","leaves","tracery"]) {
+            const s=G.invent("check-"+layout+"-"+motif,{...G.defaults,density:16});
+            s.recipe.layout=layout;s.recipe.motif=motif;s.recipe.field="vortex";s.recipe.twist=2.8;s.movement=100;s.density=16;
+            try {audit(G.generate(s));}
+            catch(error) {if(error instanceof G.GeometryError&&layout==="triangles"&&motif==="tracery")continue;throw error;}
+          }
+        });
+      }
+      test("small, narrow, and wide panels retain webs or explicitly reject empty geometry",()=>{
+        for(const [width,height] of [[2,2],[19,2],[2,10.5]])for(const layout of Object.keys(G.recipeOptions.layout)){
+          const s=G.invent("extreme-"+layout,{...G.defaults,width,height});s.recipe.layout=layout;s.recipe.motif="facets";s.web=0.3;s.density=48;s.movement=100;
+          try{audit(G.generate(s));}catch(error){if(!(error instanceof G.GeometryError))throw error;}
+        }
+      });
+      test("explorer SVG dimensions, recipe round-trip, and no decorative content",()=>{
+        const s=G.validate({...G.defaults,seed:'test<&"seed',width:7.25,height:5.5});
+        const svg=G.exportSVG(s),xml=new DOMParser().parseFromString(svg,"image/svg+xml");
+        assert(!xml.querySelector("parsererror"),"Invalid XML");
+        assert(xml.documentElement.getAttribute("width")==="7.25in"&&xml.documentElement.getAttribute("height")==="5.5in","Physical scale wrong");
+        assert(!xml.querySelector("#score,mask,pattern,image,script"),"Score/preview content in cut-only export");
+        const stored=JSON.parse(xml.querySelector("desc").textContent.slice(0,JSON.stringify(s).length));
+        assert(G.exportSVG(stored)===svg,"Recipe export not reproducible");
+        assert(xml.querySelectorAll("#cut path").length===G.generate(s).shapes.length,"Preview/export cut counts differ");
+      });
+      test("discovery changes compositions, not only seeds",()=>{
+        const signatures=new Set(),outputs=new Set();let usable=0;
+        for(let i=0;i<100;i++){
+          const s=G.invent("idea-"+i),r=s.recipe;
+          signatures.add([r.layout,r.motif,r.field,r.rhythm].join("/"));
+          try{outputs.add(G.generate(s).shapes.map(p=>p.d).join(""));usable++;}catch(error){if(!(error instanceof G.GeometryError))throw error;}
+        }
+        assert(signatures.size>=70,"Fewer than 70 structural combinations in 100 ideas");
+        assert(usable>=80&&outputs.size===usable,"Too few usable or distinct ideas");
+        assert(JSON.stringify(G.invent("stable"))===JSON.stringify(G.invent("stable")),"Recipe invention not deterministic");
+      });
+      test("related exploration and directions preserve their intended scope",()=>{
+        const s=G.invent("related",G.defaults,"all",true);
+        assert(s.recipe.layout===G.defaults.recipe.layout&&s.recipe.motif===G.defaults.recipe.motif,"Related structure changed");
+        for(const direction of ["geometry","organic","optical"])for(let i=0;i<10;i++) G.validate(G.invent(direction+i,G.defaults,direction));
+      });
+test("interrupted ribbon tips stay finite and retain separation", () => {
+  for (const seed of ["probe-8", "probe-18", "ribbon-breaks"]) {
+    const s = G.invent(seed);
+    s.recipe.layout = "ribbons"; s.recipe.rhythm = "bands";
+    audit(G.generate(s));
+  }
+});
+test("invalid input fails explicitly", () => {
+  for(const change of [{style:"unknown"},{style:"toString"},{width:NaN},{height:11},{width:0},{density:8.5},{movement:101},{seed:""},{seed:"x".repeat(41)},{web:0.01},{openness:100},{recipe:{...G.defaults.recipe,layout:"unknown"}},{recipe:{...G.defaults.recipe,twist:NaN}}]) {
+    let threw=false;try{G.generate({...G.defaults,...change});}catch{threw=true;}
+    assert(threw,"Invalid input accepted: "+JSON.stringify(change));
+  }
+});
+document.getElementById("results").textContent=results.join("\n")+"\n\n"+(failures.length?failures.length+" FAILED":"All "+results.length+" checks passed.");
+document.body.dataset.testStatus=failures.length?"failed":"passed";
+</script>
+</body>
+</html>
