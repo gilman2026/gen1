@@ -5,6 +5,7 @@ illustrated wood / laser-path previews, local favorites, and true-size SVG
 downloads. No dependencies, accounts, analytics, AI calls, or remote assets.
 
 ## Open it
+https://gilman2026.github.io/gen1/
 
 Open [index.html](./index.html) in a browser, or use VS Code's integrated browser
 to open that local file. No terminal, Node.js, or build step is required.
