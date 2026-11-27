@@ -1,120 +1,156 @@
 # Grain
 
-A local-first generative wood-art playground. A combinatorial recipe explorer,
-illustrated wood / laser-path previews, local favorites, and true-size SVG
-downloads. No dependencies, accounts, analytics, AI calls, or remote assets.
+A dependency-free, local-first generative wood-art studio. No accounts,
+analytics, remote assets, AI calls, uploads, or automatic publication.
 
-## Open it
-https://gilman2026.github.io/gen1/
+## Open the studio
 
-Open [index.html](./index.html) in a browser, or use VS Code's integrated browser
-to open that local file. No terminal, Node.js, or build step is required.
-Click **Surprise me** or **Six new directions** to discover new compositions,
-not merely reseed the same design. Anything / Geometric / Organic / Optical
-guide discovery; they are not fixed art presets. Change the recipe dropdowns
-or sliders; select a card to bring its entire recipe into the main preview.
-**More like this** retains structure and opening type while varying distortion,
-rhythm, focal points, and movement. The small seed button reseeds the current
-recipe without replacing its structural choices.
+Live site: https://gilman2026.github.io/gen1/
 
-The same complete recipe, seed, dimensions, and slider values reproduce the SVG.
-Favorites stay in this browser's local storage, not in GitHub. Download SVGs
-to keep portable copies; the SVG description includes the complete generating
-settings. First-draft favorites remain usable with their original geometry;
-the old score-line and loose-piece families are no longer offered in discovery.
+Open [index.html](./index.html) directly in a browser. No server, package
+installation, or build is required. Refresh after changing the app files.
 
-## What makes an idea
+Four starting directions replace the combinatorial control panel:
 
-The engine combines these independent ingredients:
+- **Soft current:** smooth quilt cells moving around a common focus.
+- **Crystal field:** intentionally angular honeycomb facets with center expansion.
+- **Orbital drift:** golden-angle sites with true elliptical openings.
+- **Long tides:** wave slots interrupted by a single solid island.
 
-- **Structure:** honeycomb, quilt, cellular, radial, triangular, or ribbons.
-- **Openings:** facets, rounded cells, stars, tracery around wooden hubs, or
-  leaves oriented around a shared focal point.
-- **Distortion:** ordered, vortex, lens, waves, or saddle.
-- **Rhythm:** even, gradient, alternating, or bands.
-- Seeded motif point counts, focal positions, aspect, frequency, phase, and
-  twist, plus adjustable detail, movement, open space, and reserved wood width.
+Each shows three relevant sliders: detail or wave count, field strength, and
+open space. Detail is a generating-site budget, not the exact cutout count;
+the preview footer reports the actual count.
+Choosing a direction loads its fixed default under a stable seed such as
+`whirl-start`; those defaults do not depend on the seed. Seeded variation comes
+from **Surprise me** and the gallery.
+Cell detail uses a small set of deliberate steps rather than dead intervals between
+identical lattices. Archived/custom recipes retain off-step values unchanged.
+Physical panel dimensions, reserved
+wood width, and seed live in a separate collapsed group. Preview modes and
+Focus studio do not change geometry. Desktop controls stay alongside the art;
+on narrow screens the preview stays above the controls.
 
-Network structures partition the panel into convex cells. Distortion moves
-the generating sites before tessellation; it does not warp already-cut shapes
-into overlaps. Triangular structure subdivides those cells. Motifs are shaped
-inside inset cells. Tracery further divides each cell into inset angular
-openings around a solid hub. Ribbons instead generate closed wave slots,
-interrupted by solid focal islands and, for band rhythm, cross-bands. Their
-opening dropdown is disabled because ribbons use slots rather than cell motifs.
+**Surprise me** chooses within these coherent families rather than independently
+combining unrelated motifs, fields, and rhythms. Shapes share a focal field and
+at most one size gradient. Candidates with very sparse openings or excessive
+omissions are rejected with a bounded search that retries within the chosen
+family. Each press moves to a different direction and skips compositions whose
+detail, motion and open-space profile is close to one of the last six surprises
+(kept in memory only). This is an authored procedural vocabulary, not an AI
+artist or a guarantee of artistic quality.
 
-This is an endlessly reseedable **procedural combination space**, not an
-unbounded invention engine. The vocabulary is finite and can be extended.
-It is not a library of copied artworks, an AI image generator, or a 3D
-fabrication tool. Optical depth is flat geometry on a single panel.
-Some combinations deliberately leave more solid wood than others.
+## Saved recipes and compatibility
 
-## GitHub Pages (when you're ready)
+Favorites remain under `grain-studies-v1`; old taste records remain under
+`grain-taste-v1`. Neither collection is reset, automatically upgraded, or
+truncated. Unreadable collections are reported and not overwritten.
 
-Nothing is published automatically. Use a **personal repository you are
-authorized to publish to**, not an employer repository unless explicitly approved.
-Only publish these app files; do not upload reference screenshots, company
-documents, credentials, or other workspace contents.
+New geometry uses **version 4**. Versions 2 and 3, and first-draft ripple,
+contour, flow, and botanical recipes, retain their original rendering and export
+algorithms. Loading an archived/custom recipe does not force it into a new
+family. **Upgrade a copy** explicitly adopts version 4; the stored original is
+unchanged. A version-3 SVG fingerprint regression protects the earlier quilt.
 
-1. Put [index.html](./index.html), [styles.css](./styles.css),
-   [generators.js](./generators.js), and [app.js](./app.js) at the repository root.
-2. In GitHub, open **Settings > Pages**. Choose **Deploy from a branch**, your
-   default branch, and **/ (root)**, then save.
-3. Open the Pages URL shown there. Relative links support project-site paths.
+Version 4 rounded cells use periodic cubic B-splines with continuous tangent
+and curvature. Extra smoothing addresses pinched tips; unresolved or undersized
+openings are omitted and reported, not silently replaced with unrelated ovals.
+In rounded and oval fields, specks below 15% of the median opening area or 40%
+of the median thickness (typically clipped edge slivers) are also omitted and
+counted, so no isolated fragment sits among full-size neighbours.
+Wave slots use local tangent-continuous rounding with an additional clearance
+allowance along concave edges. Ellipses use precise SVG arcs. Facets stay angular.
 
-The app needs no API keys or server. A public repository makes its source public.
-Follow your employer's policies about personal projects and equipment; this app
-cannot determine compliance for you.
+The complete validated recipe, version, seed, dimensions, and parameters reproduce
+the same SVG. The SVG description contains those settings. Export SVGs for
+portable archives; browser storage is local to the browser and site origin.
+Switching from a local file to GitHub Pages does not transfer browser storage.
 
-## Laser workflow
+## Four-panel evolution
 
-- Dimensions are inches; SVG `width`/`height` have explicit `in` units and the
-  viewBox uses the same coordinates. Verify imported size in Glowforge.
-- Red (`#ff0000`) groups are intended cuts, blue (`#0000ff`) groups are intended
-  scores. Colors are organizational, **not machine settings**. Assign operations
-  and appropriate material settings manually.
-- Every export has one rectangular boundary cut. Disable that operation in the
-  laser UI when working on an existing panel.
-- **New recipes:** closed red openings inside an intended connected wood panel.
-  There are no fine score-line patterns or loose botanical blobs in discovery.
-- **Reserved wood:** 0.10-0.30 inches before kerf (default 0.14). Network cells
-  inset each side of a shared edge by half this width; motif shaping only removes
-  area from those inset openings. Ribbons conservatively reserve spacing using
-  bounds on their wave displacement and slope, and trim interrupted slot ends.
-  This is a geometric target, **not a material-strength or cut-quality rating**.
-- Openings with area below 0.012 square inches or a bounding-box dimension below
-  0.10 inches are omitted. This does **not** guarantee a minimum width everywhere
-  inside a hole: stars and leaves can still have sharp tips. The preview note
-  reports omitted openings. No-usable-opening recipes fail explicitly; discovery
-  skips them with a visible status message and has a bounded candidate limit.
-- **Legacy favorites:** ripple retains the original 0.08-inch horizontal spacing
-  rule; topographies / flow are blue score lines, not connected through-cut
-  patterns; botanical studies remain separate loose pieces. Their original
-  operation notes are shown when loaded.
-- Width range: 2-19 inches; height: 2-10.5 inches. These are design limits,
-  **not universal machine-bed limits**. Check your actual Glowforge model,
-  usable cutting area, material placement, and thickness.
-- 1/8 inch (3.175 mm) plywood is a material reference only. No kerf compensation,
-  joinery/fit calculation, toolpath ordering, cut-time estimate, or strength model.
-  Preview colors and texture are illustrative, not a simulation.
-- Only use laser-approved material. Unknown plywood glue, coatings, and
-  treatments may be unsafe. Follow manufacturer material/ventilation guidance;
-  never leave an operating laser unattended. Test on a small scrap.
+**Build from current design** freezes the complete recipe, seed, and dimensions.
+One parameter moves in four equal steps, including both endpoints; all other
+settings stay fixed. No-effect parameters and invalid geometry are reported.
+Endpoint edits affect the frozen study, not the main design.
 
-## Inspiration
+Each **Export panel** button exports one panel at its stated physical size,
+never an oversized combined sheet. **Export study recipes** saves all four
+complete recipes as JSON.
 
-Broad ideas: geometric screens, Middle Eastern mosaic rhythms, cellular
-lattices, optical funnels, solid islands interrupting waves, and related
-botanical forms. The code does not trace the supplied screenshots or copy artworks.
-Public browsing references:
-[r/generative wiki](https://www.reddit.com/r/generative/wiki/index/) and
-[Flow Variations discussion](https://www.reddit.com/r/generative/comments/z2zdwi/flow_variations/).
-No Reddit content or image is embedded or fetched by the app.
+## A broad taste gallery
+
+The gallery offers up to twelve independent 10 x 8 in sketches: three per
+family when enough distinct compositions remain. Mark any number as
+**Favorite** or **Dislike**, leave others unmarked, or choose **None of these**.
+Save choices once; request a new gallery when ready.
+
+Records store the exact categorical choices and complete recipes. Unmarked
+sketches and "none" are not converted to zero scores or inferred dislikes.
+Earlier 0-10 ratings and pair comparisons still validate and export unchanged.
+Automatic preference ranking is no longer offered; no broad taste claims are
+made from repeated or weak ratings.
+
+Novelty uses composition descriptors weighted toward detail, field strength,
+and open space, with focal placement as a secondary distinction. It does not use
+pixel differences as artistic judgment. Descriptors persist separately under
+`grain-gallery-seen-v1`; each new gallery avoids profiles equivalent to those in
+the last three galleries, so recent repeats are excluded without permanently
+exhausting the vocabulary.
+This conservative heuristic is not proof of artistic uniqueness. When the
+finite vocabulary cannot provide enough fresh profiles, the app shows fewer
+sketches instead of padding with near-duplicates.
+
+**Undo last record** removes only the latest feedback record. Up to 500 records
+are supported; a full collection reports an error rather than dropping records.
+**Export taste notes** saves JSON locally for explicit discussion. The app never
+uploads feedback or turns it into assistant memory.
+
+## True-size SVG and laser workflow
+
+- All geometry uses inches. SVG `width` and `height` have explicit `in` units;
+  the viewBox uses the same coordinates. Verify imported dimensions in Glowforge.
+- Downloaded cut paths are the same paths used in the preview. Preview masks,
+  wood texture, backing, and colors are not included in laser exports.
+- Red (`#ff0000`) denotes intended cuts, blue (`#0000ff`) legacy scores. Colors
+  are organizational, **not machine settings**. Assign operations manually.
+- Every SVG includes one rectangular boundary cut. Disable it when appropriate
+  for an existing panel.
+- New families have closed openings inside an intended connected panel.
+  Reserved cell wood is 0.08-0.40 in before kerf. Convex cells inset each shared
+  edge by half that width; wave slots reserve displacement/slope clearance.
+- Openings below 0.012 square inches or 0.10 in bounding-box span are omitted.
+  This does not guarantee minimum width everywhere within an opening.
+- Legacy ripple preserves its original horizontal spacing rule. Contour/flow
+  studies are score lines; botanical studies produce loose pieces.
+- Panel limits are 2-19 in wide and 2-10.5 in high, **not universal machine-bed
+  limits**. Check your model, material position, and usable area.
+- Geometry checks are **not material-strength, kerf, fit, cut-time, ventilation,
+  laser-setting, or cut-quality guarantees**. The 1/8 in plywood note is only a
+  material reference. Two woods is an illustrative backing, not an inlay model.
+- Use only laser-approved material; unknown glues, coatings, and treatments may
+  be unsafe. Follow manufacturer guidance, verify ventilation, never leave a
+  running laser unattended, and test a small scrap of the actual material.
 
 ## Checks
 
-Open [tests.html](./tests.html) in the browser. The dependency-free checks exercise
-determinism, dimensions, complete recipe round-trips, actual cutout separation,
-boundary clearance, intersections, finite ribbon tips, structural diversity
-across 100 generated recipes, and explicit invalid-input handling. Legacy
-checks retain coverage for saved first-draft studies.
+Open [tests.html](./tests.html). The dependency-free browser suite retains the
+original geometry checks and adds version-3 archival compatibility, 100 seeds
+per offered family, sampled actual SVG-path containment/separation, exported
+path identity and dimensions, five-point slider-effect thresholds, semantic
+gallery novelty, and categorical feedback round-trips.
+
+The seed audits sample the browser's actual curves at 96 points per opening,
+in addition to the existing polygon/curve-continuity checks. They do not prove
+all possible seeds or material behavior. The slider occupancy threshold measures
+observable change, not beauty or artistic diversity.
+
+## GitHub Pages, only when explicitly authorized
+
+Nothing is published by the app. Use a personal repository you are authorized
+to publish to, and upload only [index.html](./index.html),
+[styles.css](./styles.css), [generators.js](./generators.js),
+[taste.js](./taste.js), and [app.js](./app.js). Do not include taste notes,
+reference files, screenshots, credentials, or unrelated workspace contents.
+
+In **Settings > Pages**, choose deployment from the intended branch and root.
+Relative asset links support project-site paths. The app requires no API keys
+or server. A public repository makes source public; follow applicable policies.

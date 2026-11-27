@@ -1,14 +1,21 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Grain geometry checks</title><script src="generators.js"></script></head>
+<head><meta charset="utf-8"><title>Grain geometry checks</title><script src="generators.js"></script><script src="taste.js"></script></head>
 <body>
 <h1>Grain geometry checks</h1><pre id="results">Running...</pre>
 <script>
 "use strict";
-const G = window.Grain, results = [], failures = [];
+const G = window.Grain, results = [], failures = [], pendingTests = [];
 function assert(condition, message) { if (!condition) throw new Error(message); }
 function test(name, run) {
-  try { run(); results.push("PASS " + name); }
+  try {
+    const result=run();
+    if(result&&typeof result.then==="function"){
+      pendingTests.push(result.then(()=>results.push("PASS "+name),error=>{
+        results.push("FAIL "+name+": "+error.message);failures.push(name);
+      }));
+    }else results.push("PASS " + name);
+  }
   catch (error) { results.push("FAIL " + name + ": " + error.message); failures.push(name); }
 }
 function cross(a,b,c) { return (b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]); }
@@ -83,7 +90,7 @@ for (const style of ["ripple", "contour", "flow", "bloom"]) {
         return inside;
       }
       function audit(d) {
-        const shapes=d.shapes, boxes=shapes.map(s=>bounds(s.points)), web=d.settings.web;
+        const shapes=d.shapes, boxes=shapes.map(s=>bounds(s.points)), web=d.metrics.reservedWeb;
         assert(shapes.length>0,"No cutouts");
         for(const shape of shapes) {
           assert(shape.closed && shape.operation==="cut","Recipe emitted score line or open cut");
@@ -156,14 +163,234 @@ test("interrupted ribbon tips stay finite and retain separation", () => {
     audit(G.generate(s));
   }
 });
+function measuredPath(shape) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg","svg"), p = document.createElementNS(svg.namespaceURI,"path");
+  p.setAttribute("d",shape.d);svg.append(p);
+  assert(Number.isFinite(p.getTotalLength())&&p.getTotalLength()>0,"Browser could not measure the actual SVG path");
+  return { path:p, remove:()=>svg.remove() };
+}
+test("rounded exports contain actual continuous curves, not polygon edges",()=>{
+  const d=G.generate({...G.defaults,recipe:{...G.defaults.recipe,motif:"soft",roundness:100}});
+  const xml=new DOMParser().parseFromString(G.exportSVG(d.settings),"image/svg+xml");
+  for(const p of xml.querySelectorAll("#cut path")) assert(p.getAttribute("d").includes("C")&&!/[LQ]/.test(p.getAttribute("d")),"Organic export still follows individual polygon corners");
+  for(const shape of d.shapes.slice(0,5)){
+    const measured=measuredPath(shape),length=measured.path.getTotalLength();
+    try{
+      for(let i=0;i<100;i++){
+        const q=measured.path.getPointAtLength(length*i/100),p=[q.x,q.y];
+        assert(contains(shape.envelope,p)||shape.envelope.some((a,k)=>pointDistance(p,a,shape.envelope[(k+1)%shape.envelope.length])<0.00003),"Exported curve leaves its reserved cell");
+      }
+    }finally{measured.remove();}
+  }
+});
+test("organic contours have continuous tangent and curvature even on uneven cells",()=>{
+  const d=G.generate({...G.defaults,movement:150,recipe:{...G.defaults.recipe,layout:"scatter",jitter:0.2}});
+  for(const shape of d.shapes){
+    assert(shape.minRadius>=shape.targetRadius&&!shape.pinched,"A smooth but needle-like organic tip was retained");
+    const initial=shape.d.match(/^M([-\d.]+),([-\d.]+)/);
+    let start=[Number(initial[1]),Number(initial[2])];
+    const segments=Array.from(shape.d.matchAll(/C([-\d.]+),([-\d.]+) ([-\d.]+),([-\d.]+) ([-\d.]+),([-\d.]+)/g),m=>{
+      const segment=[start,[Number(m[1]),Number(m[2])],[Number(m[3]),Number(m[4])],[Number(m[5]),Number(m[6])]];
+      start=segment[3];return segment;
+    });
+    assert(segments.length>0,"No globally smooth contour");
+    for(let i=0;i<segments.length;i++){
+      const a=segments[i],b=segments[(i+1)%segments.length];
+      for(let axis=0;axis<2;axis++){
+        assert(Math.abs((a[3][axis]-a[2][axis])-(b[1][axis]-b[0][axis]))<0.00004,"Tangent jumps at contour join");
+        assert(Math.abs((a[3][axis]-2*a[2][axis]+a[1][axis])-(b[2][axis]-2*b[1][axis]+b[0][axis]))<0.00006,"Curvature pinches at contour join");
+      }
+    }
+  }
+  audit(d);
+});
+test("true ellipse SVG arcs satisfy the ellipse equation",()=>{
+  const s={...G.defaults,recipe:{...G.defaults.recipe,motif:"ovals",shapeAspect:1.8,phase:0.4}};
+  const d=G.generate(s);
+  for(const shape of d.shapes.slice(0,5)){
+    assert(shape.d.includes("A")&&!/[LQ]/.test(shape.d),"Ellipse exported as an approximation");
+    const e=shape.ellipse,measured=measuredPath(shape),length=measured.path.getTotalLength();
+    try{
+      for(let i=0;i<80;i++){
+        const q=measured.path.getPointAtLength(length*i/80),dx=q.x-e.cx,dy=q.y-e.cy;
+        const x=dx*Math.cos(e.rotation)+dy*Math.sin(e.rotation),y=-dx*Math.sin(e.rotation)+dy*Math.cos(e.rotation);
+        // Browser geometry APIs approximate conics; verify exact SVG centers below.
+        assert(Math.abs(x*x/(e.rx*e.rx)+y*y/(e.ry*e.ry)-1)<0.0006,"Rendered arc departs from the ellipse");
+      }
+    }finally{measured.remove();}
+    const initial=shape.d.match(/^M([-\d.]+),([-\d.]+)/);
+    let start=[Number(initial[1]),Number(initial[2])];
+    for(const arc of shape.d.matchAll(/A([-\d.]+),([-\d.]+) ([-\d.]+) 0 1 ([-\d.]+),([-\d.]+)/g)){
+      const rx=Number(arc[1]),ry=Number(arc[2]),a=Number(arc[3])*Math.PI/180,end=[Number(arc[4]),Number(arc[5])];
+      const dx=(start[0]-end[0])/2,dy=(start[1]-end[1])/2,x=dx*Math.cos(a)+dy*Math.sin(a),y=-dx*Math.sin(a)+dy*Math.cos(a);
+      const coefficient=Math.sqrt(Math.max(0,(rx*rx*ry*ry-rx*rx*y*y-ry*ry*x*x)/(rx*rx*y*y+ry*ry*x*x)));
+      const cx=coefficient*rx*y/ry,cy=-coefficient*ry*x/rx;
+      const centerX=cx*Math.cos(a)-cy*Math.sin(a)+(start[0]+end[0])/2,centerY=cx*Math.sin(a)+cy*Math.cos(a)+(start[1]+end[1])/2;
+      assert(Math.hypot(centerX-e.cx,centerY-e.cy)<0.0000001,"Arc centers drift apart");
+      start=end;
+    }
+  }
+  audit(d);
+});
+test("extended movement and independent tracery controls preserve real webs",()=>{
+  const base=G.validate(G.defaults);
+  for(const outline of Object.keys(G.traceOutlines)){
+    const s={...base,movement:180,web:0.18,recipe:{...base.recipe,motif:"tracery",traceOutline:outline,traceWeb:0.08,traceHub:10,symmetry:6,roundness:100}};
+    audit(G.generate(s));
+  }
+  const a=G.generate({...base,recipe:{...base.recipe,motif:"tracery",traceHub:0}});
+  const b=G.generate({...base,recipe:{...base.recipe,motif:"tracery",traceHub:45}});
+  assert(a.metrics.openFraction>b.metrics.openFraction,"Hub control has no meaningful area effect");
+});
+test("balance reaches a measurable target and reports unreachable requests",()=>{
+  const result=G.balance(G.defaults,0.48);
+  assert(result.reached&&Math.abs(G.generate(result.settings).metrics.openFraction-0.48)<0.01,"Balance did not reach target");
+  const sparse={...G.defaults,recipe:{...G.defaults.recipe,motif:"leaves",shapeAspect:0.3}};
+  const impossible=G.balance(sparse,0.75);
+  assert(!impossible.reached&&impossible.achieved<0.75,"Unreachable target reported as success");
+  assert(G.generate({...G.defaults,openness:100}).metrics.openFraction>G.generate({...G.defaults,openness:80}).metrics.openFraction+0.1,"Opening range cannot fill the design");
+});
+test("four panels interpolate one parameter and keep all other settings",()=>{
+  const panels=G.evolve(G.defaults,"movement",0,180);
+  assert(panels.length===4,"Wrong panel count");
+  const recipes=panels.map(p=>JSON.stringify(p.design.settings.recipe));
+  assert(new Set(recipes).size===1,"Recipe changed across panels");
+  assert(panels.every((p,i)=>p.value===i*60&&p.design.settings.seed===G.defaults.seed),"Incorrect equal progression or changed seed");
+  assert(new Set(panels.map(p=>p.design.shapes.map(s=>s.d).join(""))).size===4,"Panels do not actually evolve");
+  for(const panel of panels){
+    const xml=new DOMParser().parseFromString(G.exportSVG(panel.design.settings),"image/svg+xml");
+    assert(xml.documentElement.getAttribute("width")==="10in"&&xml.documentElement.getAttribute("height")==="8in","Panel export uses combined-sheet dimensions");
+  }
+  let rejected=false;try{G.evolve({...G.defaults,recipe:{...G.defaults.recipe,field:"still"}},"movement",0,100);}catch{rejected=true;}
+  assert(rejected,"No-effect evolution accepted silently");
+});
+test("version 2 favorites retain polygons until an explicit upgrade",()=>{
+  const v2={style:"explore",seed:"courtyard-008",width:10,height:8,density:26,movement:62,web:0.14,openness:86,recipe:{layout:"quilt",motif:"tracery",field:"vortex",rhythm:"gradient",symmetry:8,frequency:1.4,twist:1.8,aspect:1,focusX:0.5,focusY:0.5,phase:0.8}};
+  const old=G.exportSVG(v2),upgraded=G.upgrade(v2);
+  assert(G.generate(v2).shapes.length===123,"Version 2 prototype geometry changed");
+  assert(!G.generate(v2).shapes.some(p=>p.d.includes("Q")),"Version 2 was silently upgraded");
+  assert(upgraded.version===4&&G.generate(upgraded).shapes.some(p=>/[CQ]/.test(p.d)),"Upgrade did not add curves");
+  assert(G.exportSVG(v2)===old,"Upgrade mutated original favorite");
+});
+test("ratings and comparisons round-trip, distinguish taste, and reject invalid records",()=>{
+  const T=window.GrainTaste,a=G.validate(G.defaults),b=G.validate({...G.defaults,recipe:{...G.defaults.recipe,layout:"radial",motif:"stars",field:"still"}});
+  const common={createdAt:"2026-11-26T17:00:00.000Z"};
+  const collection=T.validate({version:1,useFeedback:true,entries:[{...common,id:"rating-a",kind:"rating",study:a,rating:9},{...common,id:"rating-b",kind:"rating",study:b,rating:2},{...common,id:"choice",kind:"comparison",left:a,right:b,choice:"left"}]});
+  assert(T.score(a,collection)>T.score(b,collection),"Feedback does not influence recipe ranking");
+  const restored=T.validate(JSON.parse(T.exportJSON(collection)));
+  assert(JSON.stringify(restored)===JSON.stringify(collection),"Feedback export lost ratings or recipes");
+  for(const rating of [-1,11,NaN]){
+    let rejected=false;try{T.validate({version:1,entries:[{...common,id:"bad",kind:"rating",study:a,rating}]});}catch{rejected=true;}
+    assert(rejected,"Invalid score accepted");
+  }
+});
+test("taste sketches are observably different and freshly procedural",()=>{
+  const T=window.GrainTaste,original=JSON.stringify(G.defaults);
+  for(let i=0;i<6;i++){
+    const a=T.pair("taste-contrast-"+i,i),b=T.pair("taste-fresh-"+i,i);
+    assert(a.difference>=0.12&&b.difference>=0.12,"Near-identical taste sketches accepted");
+    assert(a.designs.every(d=>d.settings.width===10&&d.settings.height===8),"Comparison panel inconsistent");
+    assert(a.designs.map(d=>d.shapes.map(p=>p.d).join("")).join("|")!==b.designs.map(d=>d.shapes.map(p=>p.d).join("")).join("|"),"Next cycle repeats the same artwork");
+    assert(JSON.stringify(a)===JSON.stringify(T.pair("taste-contrast-"+i,i)),"Same comparison seed is not reproducible");
+  }
+  assert(JSON.stringify(G.defaults)===original,"Taste sketches mutate the studio defaults");
+});
 test("invalid input fails explicitly", () => {
-  for(const change of [{style:"unknown"},{style:"toString"},{width:NaN},{height:11},{width:0},{density:8.5},{movement:101},{seed:""},{seed:"x".repeat(41)},{web:0.01},{openness:100},{recipe:{...G.defaults.recipe,layout:"unknown"}},{recipe:{...G.defaults.recipe,twist:NaN}}]) {
+  for(const change of [{style:"unknown"},{style:"toString"},{width:NaN},{height:11},{width:0},{density:8.5},{movement:201},{seed:""},{seed:"x".repeat(41)},{web:0.01},{openness:101},{recipe:{...G.defaults.recipe,layout:"unknown"}},{recipe:{...G.defaults.recipe,twist:NaN}},{version:99}]) {
     let threw=false;try{G.generate({...G.defaults,...change});}catch{threw=true;}
     assert(threw,"Invalid input accepted: "+JSON.stringify(change));
   }
 });
-document.getElementById("results").textContent=results.join("\n")+"\n\n"+(failures.length?failures.length+" FAILED":"All "+results.length+" checks passed.");
-document.body.dataset.testStatus=failures.length?"failed":"passed";
+test("version 3 archived SVG remains byte-for-byte stable",()=>{
+  const s={...G.defaults,version:3},svg=G.exportSVG(s);
+  let hash=2166136261;for(const c of svg)hash=Math.imul(hash^c.charCodeAt(0),16777619);
+  assert(G.generate(s).shapes.length===58&&(hash>>>0)===1531638711,"Archived version 3 geometry changed");
+  assert(G.upgrade(s).version===4&&G.exportSVG(s)===svg,"Explicit upgrade mutated the archive");
+});
+for(const family of Object.keys(G.families)){
+  test(family+" 100 seeds: actual SVG curves, spacing, containment, and reproducibility",async()=>{
+    for(let seed=0;seed<100;seed++){
+      await new Promise(resolve=>setTimeout(resolve,0));
+      const s=G.curate("reset-audit-"+seed,family),d=G.generate(s);
+      const shapes=d.shapes.map(shape=>{
+        const measured=measuredPath(shape),length=measured.path.getTotalLength();
+        try{
+          const points=Array.from({length:96},(_,i)=>{
+            const q=measured.path.getPointAtLength(length*i/96);return [q.x,q.y];
+          });
+          if(shape.envelope)for(const p of points)assert(contains(shape.envelope,p)||shape.envelope.some((a,k)=>pointDistance(p,a,shape.envelope[(k+1)%shape.envelope.length])<0.00003),"Actual curve leaves reserved envelope");
+          return {...shape,points};
+        }finally{measured.remove();}
+      });
+      audit({...d,shapes});
+      const xml=new DOMParser().parseFromString(G.exportSVG(s),"image/svg+xml");
+      const paths=[...xml.querySelectorAll("#cut path")].map(p=>p.getAttribute("d"));
+      assert(JSON.stringify(paths)===JSON.stringify(d.shapes.map(p=>p.d)),"Export differs from preview geometry");
+      assert(xml.documentElement.getAttribute("width")==="10in"&&xml.documentElement.getAttribute("height")==="8in","Wrong true size");
+      assert(JSON.stringify(G.curate("reset-audit-"+seed,family))===JSON.stringify(s),"Curated recipe changed for same seed");
+    }
+  });
+}
+test("every offered slider has observable effects over five points of its range",()=>{
+  const context=document.createElement("canvas").getContext("2d");
+  for(const family of Object.keys(G.families))for(const [key,,min,max,step] of G.families[family].controls){
+    let previous=null;
+    for(let i=0;i<5;i++){
+      const s=G.starting(family),value=min+Math.round((max-min)*i/4/step)*step;
+      if(key in s)s[key]=value;else s.recipe[key]=value;
+      const d=G.generate(s),paths=d.shapes.map(shape=>new Path2D(shape.d)),samples=[];
+      for(let y=0;y<60;y++)for(let x=0;x<75;x++)samples.push(paths.some(p=>context.isPointInPath(p,(x+.5)*s.width/75,(y+.5)*s.height/60)));
+      if(previous){
+        const changed=samples.filter((v,k)=>v!==previous[k]).length/samples.length;
+        assert(changed>=0.015,`${family}/${key}: only ${(changed*100).toFixed(1)}% sampled occupancy change at ${value}`);
+      }
+      previous=samples;
+    }
+  }
+});
+test("gallery breadth, semantic novelty, and explicit choices preserve earlier ratings",()=>{
+  const T=window.GrainTaste,first=T.gallery("gallery-first"),second=T.gallery("gallery-second",first.descriptors);
+  assert(first.designs.length===12&&second.designs.length===12,"Gallery lost broad coverage");
+  const all=[...first.descriptors,...second.descriptors];
+  for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++)assert(T.distinct(all[i],all[j]),"Similar composition profiles repeated");
+  for(const family of Object.keys(G.families))assert(first.descriptors.filter(d=>d.family===family).length===3,"Missing offered family");
+  const common={createdAt:"2026-11-26T17:00:00.000Z"};
+  const prior={...common,id:"prior",kind:"rating",rating:3,study:{...G.defaults,version:3}};
+  const record={...common,id:"gallery",kind:"gallery",none:false,studies:first.designs.map((d,i)=>({study:d.settings,choice:i===0?"favorite":i===1?"dislike":"unrated"}))};
+  const collection=T.validate({version:1,entries:[prior,record]});
+  assert(JSON.stringify(T.validate(JSON.parse(T.exportJSON(collection))))===JSON.stringify(collection),"Gallery export lost choices or prior ratings");
+  const none=T.validate({version:1,entries:[{...record,none:true,studies:record.studies.map(item=>({...item,choice:"unrated"}))}]});
+  assert(T.score(G.defaults,none)===0,"None was mistaken for an inferred rating");
+});
+test("every cell-detail stop changes the lattice rather than landing on a dead interval",()=>{
+  for(const family of ["whirl","crystal","orbit"]){
+    const [key,,min,max,step]=G.families[family].controls[0],paths=new Set();
+    for(let value=min;value<=max;value+=step){
+      const s=G.starting(family);s[key]=value;
+      paths.add(G.generate(s).shapes.map(p=>p.d).join("|"));
+    }
+    assert(paths.size===(max-min)/step+1,`${family}: an offered detail stop has no effect`);
+  }
+});
+test("organic fields omit specks and slivers far smaller than their neighbours",()=>{
+  const perimeter=pts=>pts.reduce((sum,p,k)=>sum+Math.hypot(p[0]-pts[(k+1)%pts.length][0],p[1]-pts[(k+1)%pts.length][1]),0);
+  const shoelace=pts=>Math.abs(pts.reduce((sum,p,k)=>sum+p[0]*pts[(k+1)%pts.length][1]-pts[(k+1)%pts.length][0]*p[1],0))/2;
+  let checked=0;
+  for(const family of ["whirl","orbit"])for(let i=0;i<40;i++){
+    const d=G.generate(G.curate(`fragment-${family}-${i}`,family));
+    const areas=d.shapes.map(s=>s.analyticArea??shoelace(s.points)),thick=d.shapes.map((s,k)=>2*areas[k]/perimeter(s.points));
+    const median=v=>[...v].sort((a,b)=>a-b)[v.length>>1],ma=median(areas),mt=median(thick);
+    areas.forEach((a,k)=>{checked++;assert(a>=ma*0.15*0.999&&thick[k]>=mt*0.4*0.999,`${family} ${i}: opening ${k} is an isolated fragment`);});
+  }
+  assert(checked>500,"Too few openings checked");
+  const archived=G.generate({...G.defaults,version:3});
+  assert(archived.shapes.length===58,"Archived version 3 recipes must keep their fragments");
+});
+document.getElementById("results").textContent=results.join("\n")+"\n\nRunning all four 100-seed SVG audits...";
+Promise.all(pendingTests).then(()=>{
+  document.getElementById("results").textContent=results.join("\n")+"\n\n"+(failures.length?failures.length+" FAILED":"All "+results.length+" checks passed.");
+  document.body.dataset.testStatus=failures.length?"failed":"passed";
+});
 </script>
 </body>
 </html>
